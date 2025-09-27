@@ -27,151 +27,187 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
-
+# 导入所需的模块
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 import numpy as np
-
+import torch
+# 定义B1Z1RoughCfg配置类，继承自LeggedRobotCfg
 class B1Z1RoughCfg( LeggedRobotCfg ):
-    class goal_ee:
-        num_commands = 3
-        traj_time = [1, 3]
-        hold_time = [0.5, 2]
-        collision_upper_limits = [0.1, 0.2, -0.05]
-        collision_lower_limits = [-0.8, -0.2, -0.7]
-        underground_limit = -0.7
-        num_collision_check_samples = 10
-        command_mode = 'sphere'
-        arm_induced_pitch = 0.38 # Added to -pos_p (negative goal pitch) to get default eef orn_p
-
+    class goal_ee:# 机器人末端执行器的目标配置
+        num_commands = 3  # 命令数量
+        traj_time = [1, 3]  # 轨迹时间
+        hold_time = [0.5, 2]  # 保持时间
+        collision_upper_limits = [0.3, 0.18, -0.05]  # 红色碰撞空间的上限
+        collision_lower_limits = [-0.3, -0.18, -0.46]  # 碰撞空间的下限
+        underground_limit = 0.  # 地下限制
+        num_collision_check_samples = 10  # 碰撞检查样本数
+        command_mode = 'sphere'  # 命令模式，使用球形
+        arm_induced_pitch = 0.38  # 末端执行器的目标俯仰角度（负的目标俯仰角）
+        # 定义末端执行器的目标球体中心
         class sphere_center:
-            x_offset = 0.3 # Relative to base
-            y_offset = 0 # Relative to base
-            z_invariant_offset = 0.7 # Relative to terrain
-
+            x_offset = 0.04  # x方向偏移
+            y_offset = 0.0  # y方向偏移
+            z_invariant_offset = 0.46  # z方向偏移
+        # 定义末端执行器的运动范围
         class ranges:
-            init_pos_start = [0.5, np.pi/8, 0]
-            init_pos_end = [0.7, 0, 0]
+            # 初始位置范围的起始值，包含x、y、z三个坐标，单位是m和rad
+            init_pos_start = [0.5, np.pi/8, -0.2]
+            # 初始位置范围的结束值，包含x、y、z三个坐标，单位是m和rad
+            init_pos_end = [0.4, 0., -0.3]
+            # x方向的位置范围，单位是m
             pos_l = [0.4, 0.95]
-            pos_p = [-1 * np.pi / 2.5, 1 * np.pi / 3]
+            # 俯仰角度（pitch）的范围，单位是rad
+            pos_p = [-1 * np.pi / 5, 1 * np.pi / 4]
+            # 偏航角度（yaw）的范围，单位是rad
             pos_y = [-1.2, 1.2]
             
-            delta_orn_r = [-0.5, 0.5]
-            delta_orn_p = [-0.5, 0.5]
-            delta_orn_y = [-0.5, 0.5]
+            # 旋转的范围，r表示滚转角（roll），p表示俯仰角（pitch），y表示偏航角（yaw）
+            delta_orn_r = [-0.5, 0.5]  # 滚转角的范围，单位是rad
+            delta_orn_p = [-0.5, 0.5]  # 俯仰角的范围，单位是rad
+            delta_orn_y = [-0.5, 0.5]  # 偏航角的范围，单位是rad
+            # 末端执行器跟踪奖励的最终值，表示一个期望的奖励值
             final_tracking_ee_reward = 0.55
 
-        sphere_error_scale = [1, 1, 1]#[1 / (ranges.final_pos_l[1] - ranges.final_pos_l[0]), 1 / (ranges.final_pos_p[1] - ranges.final_pos_p[0]), 1 / (ranges.final_pos_y[1] - ranges.final_pos_y[0])]
-        orn_error_scale = [1, 1, 1]#[2 / np.pi, 2 / np.pi, 2 / np.pi]
+        # 末端执行器的错误尺度（误差范围） - 用于计算误差的缩放因子
+        sphere_error_scale = [1, 1, 1]  # 对应x、y、z方向的误差尺度，初始为1，即没有缩放
+        # 末端执行器的姿态误差尺度 - 用于计算姿态误差的缩放因子
+        orn_error_scale = [1, 1, 1]  # 对应滚转、俯仰和偏航角的误差尺度，初始为1，即没有缩放
 
+
+ # 定义噪声配置
     class noise:
-        add_noise = False
-        noise_level = 1.0 # scales other values
-        class noise_scales:
+        add_noise = False  # 是否添加噪声
+        noise_level = 1.0  # 噪声级别
+        class noise_scales:# 噪声的具体缩放因子
             dof_pos = 0.01
             dof_vel = 1.5
             lin_vel = 0.1
             ang_vel = 0.2
             gravity = 0.05
-            height_measurements = 0.1   
+            height_measurements = 0.1  
 
-    class commands:
-        curriculum = True
-        num_commands = 3
-        resampling_time = 3. # time before command are changed[s]
+    class commands:# 定义命令的配置
+        curriculum = True  # 是否使用渐进式学习
+        num_commands = 3  # 命令数量
+        resampling_time = 3.0  # 命令更换时间
 
-        lin_vel_x_schedule = [0, 0.5]
-        ang_vel_yaw_schedule = [0, 1]
-        tracking_ang_vel_yaw_schedule = [0, 1]
+        lin_vel_x_schedule = [0, 0.5]  # x轴线速度调度
+        ang_vel_yaw_schedule = [0, 1]  # 偏航角速度调度
+        tracking_ang_vel_yaw_schedule = [0, 1]  # 偏航角度跟踪调度
+        #这些调度参数设定了运动指令在训练中的变化区间，用于控制机器人期望达到的运动速度和旋转速度。
+        ang_vel_yaw_clip = 0.5  # 偏航角速度的限制
+        lin_vel_x_clip = 0.2  # x轴线速度的限制
 
-        ang_vel_yaw_clip = 0.5
-        lin_vel_x_clip = 0.2
+        class ranges: # 线速度和角速度的范围
+            lin_vel_x = [-0.6, 0.6]  # x轴线速度范围 [m/s]
+            ang_vel_yaw = [-1.0, 1.0]  # 偏航角速度范围 [rad/s]
 
-        class ranges:
-            lin_vel_x = [-0.8, 0.8] # min max [m/s]
-            ang_vel_yaw = [-1.0, 1.0]    # min max [rad/s]
-
-    class normalization:
+    class normalization: # 定义标准化配置
         class obs_scales:
             lin_vel = 1.0
-            ang_vel =  1.0
+            ang_vel = 1.0
             dof_pos = 1.0
             dof_vel = 0.05
             height_measurements = 5.0
-        clip_observations = 100.
-        clip_actions = 100.
+        clip_observations = 100.0  # 限制观测值
+        clip_actions = 100.0  # 限制动作值
 
-    class env:
-        num_envs = 6144
-        num_actions = 12 + 6 #CAUTION
-        num_torques = 12 + 6
-        action_delay = 3  # -1 for no delay
-        num_gripper_joints = 1
-        num_proprio = 2 + 3 + 18 + 18 + 12 + 4 + 3 + 3 + 3 
-        num_priv = 5 + 1 + 12
-        history_len = 10
-        num_observations = num_proprio * (history_len+1) + num_priv
-        num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
-        send_timeouts = True # send time out information to the algorithm
-        episode_length_s = 10 # episode length in seconds
-        reorder_dofs = True
-        teleop_mode = False # Overriden in teleop.py. When true, commands come from keyboard
-        record_video = False
-        stand_by = False
-        observe_gait_commands = False
-        frequencies = 2
+    class env:# 定义环境的配置
+        num_envs = 3072  # 环境数量
+        num_actions = 12 + 6  # 动作数量
+        num_torques = 12 + 6  # 扭矩数量
+        action_delay = 3  # 动作延迟，-1为无延迟
+        num_gripper_joints = 2  # 夹爪关节数量
+        num_proprio = 2 + 3 + 18 + 18 + 12 + 4 + 3 + 3 + 3  # 本体状态信息的数量
+        num_priv = 5 + 1 + 12  # 特权信息数量
+        history_len = 10  # 历史状态长度
+        num_observations = num_proprio * (history_len+1) + num_priv  # 总的观测值数量
+        num_privileged_obs = None  # 特权观测值
+        send_timeouts = True  # 是否发送超时信息
+        episode_length_s = 10  # 每集的时长（秒）
+        reorder_dofs = True  # 是否重新排列自由度
+        teleop_mode = False  # 是否启用远程控制模式
+        record_video = False  # 是否录制视频
+        stand_by = False  # 是否处于待机状态
+        observe_gait_commands = False  # 是否观察步态命令
+        frequencies = 2  # 更新频率
 
-    class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.5] # x,y,z [m]
-        default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0.2,   # [rad]
-            'FL_thigh_joint': 0.8,     # [rad]
-            'FL_calf_joint': -1.5,   # [rad]
+    class init_state( LeggedRobotCfg.init_state ): # 初始化状态配置
+        pos = [0.0, 0.0, 0.34]  # 初始位置 [x, y, z]
+        default_joint_angles = {  # 四足和机械臂的初始关节角度
+            'FL_hip_joint': 0.1,  # 前左髋关节 [rad]
+            'RL_hip_joint': 0.1,  # 后左髋关节 [rad]
+            'FR_hip_joint': -0.1,  # 前右髋关节 [rad]
+            'RR_hip_joint': -0.1,  # 后右髋关节 [rad]
 
-            'RL_hip_joint': 0.2,   # [rad]
-            'RL_thigh_joint': 0.8,   # [rad]
-            'RL_calf_joint': -1.5,    # [rad]
+            'FL_thigh_joint': 0.8,  # 前左大腿关节 [rad]
+            'RL_thigh_joint': 1.,  # 后左大腿关节 [rad]
+            'FR_thigh_joint': 0.8,  # 前右大腿关节 [rad]
+            'RR_thigh_joint': 1.,  # 后右大腿关节 [rad]
 
-            'FR_hip_joint': -0.2 ,  # [rad]
-            'FR_thigh_joint': 0.8,     # [rad]
-            'FR_calf_joint': -1.5,  # [rad]
+            'FL_calf_joint': -1.5,  # 前左小腿关节 [rad]
+            'RL_calf_joint': -1.5,  # 后左小腿关节 [rad]
+            'FR_calf_joint': -1.5,  # 前右小腿关节 [rad]
+            'RR_calf_joint': -1.5,  # 后右小腿关节 [rad]
 
-            'RR_hip_joint': -0.2,   # [rad]
-            'RR_thigh_joint': 0.8,   # [rad]
-            'RR_calf_joint': -1.5,    # [rad]
-
-            'z1_waist': 0.0,
-            'z1_shoulder': 1.48,
-            'z1_elbow': -0.63,
-            'z1_wrist_angle': -0.84,
-            'z1_forearm_roll': 0.0,
-            'z1_wrist_rotate': 1.57,#0.0,
-            'z1_jointGripper': -0.785,
+            # 机械臂的初始关节角度
+            "zarx_j1": 0.0,
+            "zarx_j2": 0.1,
+            "zarx_j3": 0.1,
+            "zarx_j4": 0.0,
+            "zarx_j5": 0.0,
+            "zarx_j6": 0.0,
+            "zarx_j7": 0.0,
+            "zarx_j8": 0.0,
         }
-        rand_yaw_range = np.pi/2
-        origin_perturb_range = 0.5
-        init_vel_perturb_range = 0.1
+        rand_yaw_range = np.pi/2  # 随机偏航角范围
+        origin_perturb_range = 0.5  # 原点扰动范围
+        init_vel_perturb_range = 0.1  # 初始化速度扰动范围
 
-    class control:
-        stiffness = {'joint': 80, 'z1': 5}  # [N*m/rad] # Kp: 80, 150, 200
-        damping = {'joint': 2.0, 'z1': 0.5}     # [N*m*s/rad]
+    # 控制配置
+    class control(LeggedRobotCfg.control):
+        stiffness = {  # 各关节的刚度
+            'joint': 35.,
+            "zarx": 50.,
+            "zarx_j1": 40.,
+            "zarx_j2": 70.,
+            "zarx_j3": 70.,
+            "zarx_j4": 25.,
+            "zarx_j5": 25.,
+            "zarx_j6": 25.,
+            "zarx_j7": 50.,
+            "zarx_j8": 50.,          
+        }  # [N*m/rad] 
+        damping = {  # 各关节的阻尼
+            'joint': 1.,
+            "zarx": 20.,
+            "zarx_j1": 3.,
+            "zarx_j2": 15.,
+            "zarx_j3": 15.,
+            "zarx_j4": 2.,
+            "zarx_j5": 2.,
+            "zarx_j6": 2.,
+            "zarx_j7": 20.,
+            "zarx_j8": 20.,
+        }  # [N*m*s/rad]
 
-        adaptive_arm_gains = False
-        # action scale: target angle = actionScale * action + defaultAngle
+        adaptive_arm_gains = False  # 是否使用自适应机械臂增益
+        # 动作的缩放因子
         action_scale = [0.4, 0.45, 0.45] * 2 + [0.4, 0.45, 0.45] * 2 + [2.1, 0.6, 0.6, 0, 0, 0]
-        # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 4
-        torque_supervision = False
+        decimation = 4  # 动作更新的减法次数
+        torque_supervision = False  # 扭矩监督
 
+    # 机器人资源的配置
     class asset( LeggedRobotCfg.asset ):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/b1z1/urdf/b1z1.urdf'
-        foot_name = "foot"
-        gripper_name = "ee_gripper_link" #"gripperMover"
-        penalize_contacts_on = ["thigh", "trunk", "calf"]
-        terminate_after_contacts_on = []
-        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
-        flip_visual_attachments = False
-        collapse_fixed_joints = True # Specific fixed joints can be kept by adding " <... dont_collapse="true">
-        fix_base_link = False
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/arx5go2.urdf'  # 机器人资源文件路径
+        foot_name = "foot"  # 足部名称
+        gripper_name = "zarx_body7"  # 夹爪名称
+        penalize_contacts_on = ["thigh",  "calf", "trunk"]  # 关节接触惩罚
+        terminate_after_contacts_on = []  # 结束后接触
+        self_collisions = 0  # 是否启用自碰撞检查
+        flip_visual_attachments = False  # 是否翻转视觉附件
+        collapse_fixed_joints = True  # 是否合并固定关节
+        fix_base_link = False  # 是否固定基座链接
     
     class box:
         box_size = 0.1
@@ -182,70 +218,71 @@ class B1Z1RoughCfg( LeggedRobotCfg ):
         box_env_origins_z = box_size / 2 + 0.16
     
     class arm:
-        init_target_ee_base = [0.2, 0.0, 0.2]
+        init_target_ee_base = [0.0, 0.0, 0.0]
         grasp_offset = 0.08
         osc_kp = np.array([100, 100, 100, 30, 30, 30])
         osc_kd = 2 * (osc_kp ** 0.5)
 
+    # 随机化配置
     class domain_rand:
-        observe_priv = True
-        randomize_friction = True
-        friction_range = [0.3, 3.0] # [0.5, 3.0]
-        randomize_base_mass = True
-        added_mass_range = [0., 15.]
-        randomize_base_com = True
-        added_com_range_x = [-0.15, 0.15]
-        added_com_range_y = [-0.15, 0.15]
-        added_com_range_z = [-0.15, 0.15]
-        randomize_motor = True
-        leg_motor_strength_range = [0.7, 1.3]
-        arm_motor_strength_range = [0.7, 1.3]
-        randomize_gripper_mass = True
-        gripper_added_mass_range = [0, 0.1]
-        push_robots = True
-        push_interval_s = 8
-        max_push_vel_xy = 0.5
-  
+        observe_priv = True  # 是否观察特权信息
+        randomize_friction = True  # 是否随机化摩擦
+        friction_range = [0.05, 4.5]  # 摩擦范围
+        randomize_base_mass = True  # 是否随机化基础质量
+        added_mass_range = [-0.5,0.5]  # 添加质量的范围
+        randomize_base_com = True  # 是否随机化基础质心
+        added_com_range_x = [-0.05, 0.05]  # 质心x方向范围
+        added_com_range_y = [-0.05, 0.05]  # 质心y方向范围 
+        added_com_range_z = [-0.05, 0.05]  # 质心z方向范围
+        randomize_motor = True  # 是否随机化电机
+        leg_motor_strength_range = [0.9, 1.1]  # 腿部电机的强度范围
+        arm_motor_strength_range = [0.9, 1.1]  # 机械臂电机的强度范围
+        randomize_gripper_mass = True  # 是否随机化夹爪的质量
+        gripper_added_mass_range = [0, 0.1]  # 夹爪添加质量的范围
+        push_robots = True  # 是否推动机器人
+        push_interval_s = 8  # 推动机器人间隔时间
+        max_push_vel_xy = 0.5  # 最大推动速度
+
+    # 奖励配置
     class rewards:
-        reward_container_name = "maniploco_rewards"   # select the reward container to use
+        reward_container_name = "maniploco_rewards"  # 奖励容器名称
 
-        # -------Common Para. ---------
-        only_positive_rewards = False # if true negative total rewards are clipped at zero (avoids early termination problems)
-        tracking_sigma = 0.2  # tracking reward = exp(-error^2/sigma)
-        tracking_ee_sigma = 1
-        soft_dof_pos_limit = 1.  # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 0.4
-        base_height_target = 0.55
-        max_contact_force = 40.  # forces above this value are penalized
-        # -------Gait control Para. ---------
-        gait_vel_sigma = 0.5
-        gait_force_sigma = 0.5
-        kappa_gait_probs = 0.07
-        feet_height_target = 0.3
+        # -------常规参数--------
+        only_positive_rewards = False  # 是否仅使用正奖励
+        tracking_sigma = 0.2  # 跟踪奖励的sigma
+        tracking_ee_sigma = 1  # 末端执行器的sigma
+        soft_dof_pos_limit = 1.  # 自由度位置限制
+        soft_dof_vel_limit = 1.  # 自由度速度限制
+        soft_torque_limit = 0.4  # 扭矩限制
+        base_height_target = 0.34  # 基座高度目标
+        max_contact_force = 40.  # 最大接触力
 
-        feet_aritime_allfeet = False
-        feet_height_allfeet = False
+        # -------步态控制参数---------
+        gait_vel_sigma = 0.5  # 步态速度的sigma，归一化因子，sigma越小惩罚越大
+        gait_force_sigma = 0.5  # 步态力的sigma，同理系数越小惩罚越大
+        kappa_gait_probs = 0.07  # 步态的概率
+        feet_height_target = 0.3  # 足部高度目标
+        #足部高度需要训练之后再看结果
 
-        # Scales set to 0 will still be logged (as zero reward and non-zero metric)
-        # To not compute and log a given metric, set the scale to None
+        feet_aritime_allfeet = False  # 是否所有足部都处于空中
+        feet_height_allfeet = False  # 是否所有足部都在同一高度
+
+        # 奖励比例
         class scales:
-            # -------Gait control rewards ---------
-            tracking_contacts_shaped_force = -2.0 # Only works when `observing_gait_commands` is true
-            tracking_contacts_shaped_vel = -2.0 # Only works when `observing_gait_commands` is true
-            feet_air_time = 2.0
-            feet_height = 1.0
+            tracking_contacts_shaped_force = -3.0  # 接触奖励（力量） -2
+            tracking_contacts_shaped_vel = -1.0  # 接触奖励（速度） -2
+            feet_air_time = 2.0  # 足部空中时间奖励 2
+            feet_height = 1.0  # 足部高度奖励 1
 
-            # -------Tracking rewards ----------
-            tracking_lin_vel_max = 2.0 
+            tracking_lin_vel_max = 0.5  # 最大线速度奖励
             tracking_lin_vel_x_l1 = 0.
-            tracking_lin_vel_x_exp = 0
-            tracking_ang_vel = 0.5
+            tracking_lin_vel_x_exp = 0.
+            tracking_ang_vel = 0.5  # 角速度奖励
 
             delta_torques = -1.0e-7/4.0
             work = 0
             energy_square = 0.0
-            torques = -2.5e-5 
+            torques = -2.5e-4 
             stand_still = 1.0 
             walking_dof = 1.5
             dof_default_pos = 0.0
@@ -254,17 +291,17 @@ class B1Z1RoughCfg( LeggedRobotCfg ):
             lin_vel_z = -1.5
             roll = -2
 
-            # common rewards
-            ang_vel_xy = -0.2 
-            dof_acc = -7.5e-7 
-            collision = -10.
-            action_rate = -0.015
-            dof_pos_limits = -10.0
+            # --------共通奖励----------
+            ang_vel_xy = -0.05  # xy方向角速度奖励
+            dof_acc = -7.5e-7  # 自由度加速度奖励
+            collision = -2.  # 碰撞惩罚
+            action_rate = -0.015  # 动作速率惩罚
+            dof_pos_limits = -10.0  # 自由度位置限制惩罚
             delta_torques = -1.0e-7
             hip_pos = -0.3
             work = -0.003
             feet_jerk = -0.0002
-            feet_drag = -0.08
+            feet_drag = -0.03
             feet_contact_forces = -0.001
             orientation = 0.0
             orientation_walking = 0.0
@@ -279,9 +316,10 @@ class B1Z1RoughCfg( LeggedRobotCfg ):
             base_height_standing = 0.0
             penalty_lin_vel_y = 0.
 
+        # 奖励配置的具体数值
         class arm_scales:
-            arm_termination = None
-            tracking_ee_sphere = 0.
+            arm_termination = None  # 机械臂终止奖励
+            tracking_ee_sphere = 0.  # 末端执行器球体跟踪奖励
             tracking_ee_world = 0.8
             tracking_ee_sphere_walking = 0.0
             tracking_ee_sphere_standing = 0.0
@@ -290,25 +328,27 @@ class B1Z1RoughCfg( LeggedRobotCfg ):
             arm_energy_abs_sum = None
             tracking_ee_orn = 0.
             tracking_ee_orn_ry = None
-        
+
     class viewer:
         pos = [-20, 0, 20]  # [m]
         lookat = [0, 0, -2]  # [m]
 
+    # 终止条件配置
     class termination:
-        r_threshold = 0.8
-        p_threshold = 0.8
-        z_threshold = 0.1
+        r_threshold = 0.8  # x轴位置阈值
+        p_threshold = 0.8  # y轴位置阈值
+        z_threshold = 0.1  # z轴位置阈值
 
+    # 地形配置
     class terrain:
-        mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
-        hf2mesh_method = "fast"  # grid or fast
-        max_error = 0.1 # for fast
-        horizontal_scale = 0.05 # [m] influence computation time by a lot
-        vertical_scale = 0.005 # [m]
-        border_size = 25 # [m]
-        height = [0.00, 0.1] # [0.04, 0.1]
-        gap_size = [0.02, 0.1]
+        mesh_type = 'trimesh'  # 地形网格类型
+        hf2mesh_method = "fast"  # 快速网格转换方法
+        max_error = 0.1  # 最大误差
+        horizontal_scale = 0.05  # 水平尺度
+        vertical_scale = 0.005  # 垂直尺度
+        border_size = 25  # 边界大小
+        height = [0.00, 0.1]  # 高度范围
+        gap_size = [0.02, 0.1]  # 间隙大小
         stepping_stone_distance = [0.02, 0.08]
         downsampled_scale = 0.075
         curriculum = False
@@ -332,6 +372,8 @@ class B1Z1RoughCfg( LeggedRobotCfg ):
         num_rows= 10 # number of terrain rows (levels)  # spreaded is benifitiall !
         num_cols = 20 # number of terrain cols (types)
 
+
+        # 地形的不同类型及其比例
         terrain_dict = {"smooth slope": 0., 
                         "rough slope up": 0.,
                         "rough slope down": 0.,
@@ -339,73 +381,80 @@ class B1Z1RoughCfg( LeggedRobotCfg ):
                         "rough stairs down": 0., 
                         "discrete": 0., 
                         "stepping stones": 0.,
-                        "gaps": 0., 
+                        "gaps": 0.,
                         "rough flat": 1.0,
                         "pit": 0.0,
                         "wall": 0.0}
-        terrain_proportions = list(terrain_dict.values())
-        # trimesh only:
-        slope_treshold = None # slopes above this threshold will be corrected to vertical surfaces
-        origin_zero_z = False
+        terrain_proportions = list(terrain_dict.values())  # 地形类型的比例
+        # 对于trimesh类型的地形：
+        slope_treshold = None  # 大于该阈值的坡度将被矫正为垂直面
+        origin_zero_z = False  # 是否将原点的z值设为零
 
-
+# B1Z1RoughCfgPPO类继承自LeggedRobotCfgPPO类，定义了PPO训练的具体配置
 class B1Z1RoughCfgPPO(LeggedRobotCfgPPO):
-    seed = 1
-    runner_class_name = 'OnPolicyRunner'
+    seed = 1  # 随机数种子
+    runner_class_name = 'OnPolicyRunner'  # 运行器的类名
+    
+    # 定义策略的配置
     class policy:
-        continue_from_last_std = True
-        init_std = [[0.8, 1.0, 1.0] * 4 + [1.0] * 6]
-        actor_hidden_dims = [128]
-        critic_hidden_dims = [128]
-        activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
-        output_tanh = False
+        continue_from_last_std = True  # 是否从上次的标准偏差继续
+        init_std = [[0.8, 1.0, 1.0] * 4 + [1.0] * 6]  # 初始标准差
+        actor_hidden_dims = [128]  # actor网络的隐藏层维度
+        critic_hidden_dims = [128]  # critic网络的隐藏层维度
+        activation = 'elu'  # 激活函数类型
+        output_tanh = False  # 是否输出tanh激活值
 
+        # 关节控制的头部隐藏层维度
         leg_control_head_hidden_dims = [128, 128]
         arm_control_head_hidden_dims = [128, 128]
 
+        # 特权信息的编码维度
         priv_encoder_dims = [64, 20]
 
+        # 腿部和机械臂的动作数量
         num_leg_actions = 12
         num_arm_actions = 6
 
-        adaptive_arm_gains = B1Z1RoughCfg.control.adaptive_arm_gains
-        adaptive_arm_gains_scale = 10.0
+        adaptive_arm_gains = B1Z1RoughCfg.control.adaptive_arm_gains  # 是否使用自适应机械臂增益
+        adaptive_arm_gains_scale = 10.0  # 自适应增益的缩放因子
         
+    # 算法配置
     class algorithm:
-        # training params
-        value_loss_coef = 1.0
-        use_clipped_value_loss = True
-        clip_param = 0.2
-        entropy_coef = 0.0
-        num_learning_epochs = 5
-        num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 2e-4 
-        schedule = 'fixed' # could be adaptive, fixed
-        gamma = 0.99
-        lam = 0.95
-        desired_kl = None
-        max_grad_norm = 1.
-        min_policy_std = [[0.15, 0.25, 0.25] * 4 + [0.2] * 3 + [0.05] * 3]
+        value_loss_coef = 1.0  # 值函数损失的权重
+        use_clipped_value_loss = True  # 是否使用剪切的值函数损失
+        clip_param = 0.2  # 剪切参数
+        entropy_coef = 0.0  # 熵的系数
+        num_learning_epochs = 5  # 每次更新时学习的轮数
+        num_mini_batches = 4  # 每个小批次的环境数量
+        learning_rate = 2e-4  # 学习率
+        schedule = 'fixed'  # 学习率调度方式
+        gamma = 0.99  # 折扣因子
+        lam = 0.95  # 优先级回放的lambda参数
+        desired_kl = None  # 目标KL散度
+        max_grad_norm = 1.0  # 最大梯度范数
+        min_policy_std = [[0.15, 0.25, 0.25] * 4 + [0.2] * 3 + [0.05] * 3]  # 最小策略标准差
 
-        mixing_schedule=[1.0, 0, 3000] #if not RESUME else [1.0, 0, 1]
-        torque_supervision = B1Z1RoughCfg.control.torque_supervision  #alert: also appears above
-        torque_supervision_schedule=[0.0, 1000, 1000]
-        adaptive_arm_gains = B1Z1RoughCfg.control.adaptive_arm_gains
-        # dagger params
-        dagger_update_freq = 20
-        priv_reg_coef_schedual = [0, 0.1, 3000, 7000] #if not RESUME else [0, 1, 1000, 1000]
-
+        mixing_schedule = [1.0, 0, 3000]  # 混合调度
+        torque_supervision = B1Z1RoughCfg.control.torque_supervision  # 扭矩监督
+        torque_supervision_schedule = [0.0, 1000, 1000]  # 扭矩监督调度
+        adaptive_arm_gains = B1Z1RoughCfg.control.adaptive_arm_gains  # 是否使用自适应机械臂增益
+        dagger_update_freq = 20  # dagger算法更新频率
+        priv_reg_coef_schedual = [0, 0.1, 3000, 7000]  # 特权正则化系数调度
+        
+    # 训练过程中的运行配置
     class runner:
-        policy_class_name = 'ActorCritic'
-        algorithm_class_name = 'PPO'
-        num_steps_per_env = 24
-        max_iterations = 45000 # number of policy updates
-        # logging
-        save_interval = 200 # check for potential saves every this many iterations
-        experiment_name = 'b1z1_v2'
-        run_name = ''
-        # load and resume
-        resume = False
-        load_run = -1 # -1 = last run
-        checkpoint = -1 # -1 = last saved model
-        resume_path = None # updated from load_run and chkpt
+        policy_class_name = 'ActorCritic'  # 策略类名
+        algorithm_class_name = 'PPO'  # 算法类名
+        num_steps_per_env = 24  # 每个环境的步数
+        max_iterations = 36000  # 最大训练迭代次数
+        save_interval = 4000  # 保存模型的间隔次数
+        experiment_name = 'b1z1_v2'  # 实验名称
+        run_name = ''  # 运行名称
+        
+        # 加载和恢复训练
+        resume = False  # 是否恢复训练
+        load_run = -1  # 恢复的运行编号
+        checkpoint = -1  # 恢复的检查点编号
+        resume_path = None  # 恢复路径
+        #版本：0317v3            
+

@@ -143,7 +143,7 @@ def play(args):
             mp4_writer.close()
 
 if __name__ == '__main__':
-    EXPORT_POLICY = True
+    EXPORT_POLICY = False
     SAVE_ACTOR_HIST_ENCODER = False
     RECORD_FRAMES = False
     MOVE_CAMERA = False

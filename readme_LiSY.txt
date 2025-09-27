@@ -11,6 +11,11 @@ cd ./low-level/legged_gym/scripts
 可以跑：
 python play.py --exptid test --task b1z1 --proj_name b1z1-low --checkpoint 38000 --observe_gait_commands
 
+go2训练：
+python train.py --headless --exptid new_go2_0922 --proj_name b1z1-low --task b1z1 --sim_device cuda:0 --rl_device cuda:0 --observe_gait_commands                       
+python play.py --exptid new_go2_0922 --task b1z1 --proj_name b1z1-low --checkpoint 8000 --observe_gait_commands
+
+
 
 cd /home/lisy/Work/MySpace/005_WBC/visual_wholebody/high-level
 This is how I trained the policy:
